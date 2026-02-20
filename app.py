@@ -8,8 +8,8 @@ st.set_page_config(page_title="Floristik Kalkulator V20", layout="wide")
 
 # --- BENUTZER-VERWALTUNG ---
 LIZENZ_DATENBANK = {
-    "Florist-Chef-99": {"name": "Geschäftsleitung", "valid_until": "2030-12-31"},
-    "Team-A-2026": {"name": "Mitarbeiter Team A", "valid_until": "2026-06-30"},
+    "Florist-Tablet": {"name": "FloristenLaden", "valid_until": "2030-12-31"},
+    "Gast-Test-123": {"name": "Gastzugang", "valid_until": "2026-06-30"},
 }
 
 if 'auth' not in st.session_state: st.session_state.auth = False
@@ -180,3 +180,4 @@ with f2:
         st.button("📄 PDF (Liste leer)", disabled=True, use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
