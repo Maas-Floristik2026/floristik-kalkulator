@@ -8,7 +8,8 @@ st.set_page_config(page_title="Floristik Kalkulator V21", layout="wide")
 
 # --- BENUTZER-VERWALTUNG ---
 LIZENZ_DATENBANK = {
-    "Florist-Tablet": {"name": "FloristenLaden", "valid_until": "2030-12-31"},
+    "Florist-1": {"name": "Florist-1-Laden", "valid_until": "2030-12-31"},
+    "Florist-2": {"name": "Florist-2-Laden", "valid_until": "2030-12-31"},
     "Gast-Test-123": {"name": "Gastzugang", "valid_until": "2026-06-30"},
 }
 
@@ -185,3 +186,4 @@ with f2:
         st.button("PDF (Liste leer)", disabled=True, use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
