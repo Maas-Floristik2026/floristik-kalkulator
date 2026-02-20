@@ -2,12 +2,54 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 
-# Verhindert, dass Browser die Seite übersetzen wollen (attribut: translate="no")
-st.set_page_config(page_title="Kalkulator", layout="wide")
+# --- SEITENKONFIGURATION ---
+st.set_page_config(page_title="Kalkulator Login", layout="wide")
 
+# --- BENUTZER-LIZENZEN ---
+# Hier kannst du beliebig viele Schlüssel und Namen hinzufügen!
+# Format: "DEIN_SCHLUESSEL": "NAME_DES_NUTZERS"
+LIZENZ_LISTE = {
+    "Florist-2026-A": "Mitarbeiter A",
+    "Tablet-Laden": "Laden-Tablet"
+}
+
+# --- AUTHENTIFIZIERUNGSLOGIK ---
+if 'auth' not in st.session_state:
+    st.session_state.auth = False
+if 'user_name' not in st.session_state:
+    st.session_state.user_name = ""
+
+if not st.session_state.auth:
+    st.markdown("""
+        <style>
+        .login-box {
+            padding: 2em;
+            border-radius: 15px;
+            background-color: #f0f2f6;
+            text-align: center;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    st.title("🔐 Lizenz-Login")
+    with st.container():
+        st.write("Bitte geben Sie Ihren persönlichen Lizenzschlüssel ein, um fortzufahren.")
+        key_input = st.text_input("Lizenzschlüssel", type="password", key="login_key")
+        
+        if st.button("Anmelden", use_container_width=True):
+            if key_input in LIZENZ_LISTE:
+                st.session_state.auth = True
+                st.session_state.user_name = LIZENZ_LISTE[key_input]
+                st.success(f"Willkommen, {st.session_state.user_name}!")
+                st.rerun()
+            else:
+                st.error("Ungültiger Lizenzschlüssel. Bitte prüfen Sie Ihre Eingabe.")
+    st.stop()
+
+# --- AB HIER STARTET DIE EIGENTLICHE APP ---
 st.markdown('<div translate="no">', unsafe_allow_html=True)
 
-# --- MINIMAL-DESIGN FÜR STABILITÄT ---
+# CSS für das Design (V16 stabil)
 st.markdown("""
 <style>
     div.stButton > button {
@@ -16,7 +58,6 @@ st.markdown("""
         border-radius: 10px;
         border: 1px solid #ccc !important;
     }
-    /* Wir lassen die Farben weg, um Konflikte mit dem Tablet-Browser zu vermeiden */
 </style>
 """, unsafe_allow_html=True)
 
@@ -35,12 +76,14 @@ def reset_callback():
     st.session_state.e1 = 0.0
     st.session_state.e2 = 0.0
 
-def generate_pdf(details, total):
+def generate_pdf(details, total, user):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
     pdf.cell(200, 10, "Kalkulations-Beleg", ln=True, align="C")
-    pdf.ln(10)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(200, 10, f"Erstellt von: {user}", ln=True, align="C")
+    pdf.ln(5)
     pdf.set_font("Arial", "B", 12)
     pdf.cell(100, 8, "Position", border=1); pdf.cell(40, 8, "Anzahl", border=1); pdf.cell(40, 8, "Summe", border=1, ln=True)
     pdf.set_font("Arial", "", 12)
@@ -51,13 +94,17 @@ def generate_pdf(details, total):
     return pdf.output(dest="S").encode("latin-1")
 
 # --- UI ---
-st.title("🌿 Floristik Kalkulator")
+st.title("🌿 Floristik Kalkulator Pro")
+st.caption(f"Angemeldet als: {st.session_state.user_name}")
 
 with st.sidebar:
     st.header("Zusatzkosten")
     e0 = st.number_input("Unterlage / Gefäß (€)", min_value=0.0, step=0.1, key="e0")
     e1 = st.number_input("Extra 1 (€)", min_value=0.0, step=0.1, key="e1")
     e2 = st.number_input("Extra 2 (€)", min_value=0.0, step=0.1, key="e2")
+    if st.button("Abmelden"):
+        st.session_state.auth = False
+        st.rerun()
 
 # Berechnung
 mat_sum = sum(k * v for k, v in st.session_state.c_mat.items())
@@ -129,7 +176,7 @@ if e1 > 0: dt.append({"Pos": "Extra 1", "Anz": 1, "Sum": e1})
 if e2 > 0: dt.append({"Pos": "Extra 2", "Anz": 1, "Sum": e2})
 
 if dt:
-    pdf_b = generate_pdf(dt, grand_total)
-    st.download_button("📄 PDF-BELEG SPEICHERN", data=pdf_b, file_name="Kalkulation.pdf", mime="application/pdf", use_container_width=True)
+    pdf_b = generate_pdf(dt, grand_total, st.session_state.user_name)
+    st.download_button("📄 PDF-BELEG SPEICHERN", data=pdf_b, file_name=f"Kalkulation_{st.session_state.user_name}.pdf", mime="application/pdf", use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
