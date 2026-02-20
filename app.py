@@ -1,63 +1,51 @@
 import streamlit as st
 import pandas as pd
 from fpdf import FPDF
+from datetime import datetime
 
 # --- SEITENKONFIGURATION ---
-st.set_page_config(page_title="Kalkulator Login", layout="wide")
+st.set_page_config(page_title="Kalkulator Safe", layout="wide")
 
-# --- BENUTZER-LIZENZEN ---
-# Hier kannst du beliebig viele Schlüssel und Namen hinzufügen!
-# Format: "DEIN_SCHLUESSEL": "NAME_DES_NUTZERS"
-LIZENZ_LISTE = {
-    "Florist-2026-A": "Mitarbeiter A",
-    "Tablet-Laden": "Laden-Tablet"
+# --- BENUTZER-VERWALTUNG MIT ABLAUFDATUM ---
+# Format: "SCHLÜSSEL": {"name": "Nutzername", "valid_until": "JJJJ-MM-TT"}
+LIZENZ_DATENBANK = {
+    "Florist-Tablet": {"name": "FloristenLaden", "valid_until": "2040-12-31"},
+    "Gast-Test-123": {"name": "Testzugang", "valid_until": "2026-02-28"},
 }
 
-# --- AUTHENTIFIZIERUNGSLOGIK ---
+# --- AUTHENTIFIZIERUNG ---
 if 'auth' not in st.session_state:
     st.session_state.auth = False
 if 'user_name' not in st.session_state:
     st.session_state.user_name = ""
 
 if not st.session_state.auth:
-    st.markdown("""
-        <style>
-        .login-box {
-            padding: 2em;
-            border-radius: 15px;
-            background-color: #f0f2f6;
-            text-align: center;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    st.title("🔐 Gesicherter Bereich")
+    key_input = st.text_input("Geben Sie Ihren Lizenzschlüssel ein:", type="password")
     
-    st.title("🔐 Lizenz-Login")
-    with st.container():
-        st.write("Bitte geben Sie Ihren persönlichen Lizenzschlüssel ein, um fortzufahren.")
-        key_input = st.text_input("Lizenzschlüssel", type="password", key="login_key")
-        
-        if st.button("Anmelden", use_container_width=True):
-            if key_input in LIZENZ_LISTE:
+    if st.button("Einloggen", use_container_width=True):
+        if key_input in LIZENZ_DATENBANK:
+            nutzer = LIZENZ_DATENBANK[key_input]
+            ablaufdatum = datetime.strptime(nutzer["valid_until"], "%Y-%m-%d")
+            
+            # Prüfen, ob das Datum noch in der Zukunft liegt
+            if datetime.now() <= ablaufdatum:
                 st.session_state.auth = True
-                st.session_state.user_name = LIZENZ_LISTE[key_input]
+                st.session_state.user_name = nutzer["name"]
                 st.success(f"Willkommen, {st.session_state.user_name}!")
                 st.rerun()
             else:
-                st.error("Ungültiger Lizenzschlüssel. Bitte prüfen Sie Ihre Eingabe.")
+                st.error(f"Diese Lizenz ist am {nutzer['valid_until']} abgelaufen. Bitte Admin kontaktieren.")
+        else:
+            st.error("Ungültiger Schlüssel.")
     st.stop()
 
-# --- AB HIER STARTET DIE EIGENTLICHE APP ---
+# --- AB HIER STARTET DIE APP ---
 st.markdown('<div translate="no">', unsafe_allow_html=True)
 
-# CSS für das Design (V16 stabil)
 st.markdown("""
 <style>
-    div.stButton > button {
-        height: 4em;
-        font-weight: bold;
-        border-radius: 10px;
-        border: 1px solid #ccc !important;
-    }
+    div.stButton > button { height: 4em; font-weight: bold; border-radius: 10px; border: 1px solid #ccc !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -72,9 +60,7 @@ def reset_callback():
     for k in st.session_state.c_gruen: st.session_state.c_gruen[k] = 0
     for k in st.session_state.c_schleife: st.session_state.c_schleife[k] = 0
     st.session_state.c_labor = 0
-    st.session_state.e0 = 0.0
-    st.session_state.e1 = 0.0
-    st.session_state.e2 = 0.0
+    st.session_state.e0, st.session_state.e1, st.session_state.e2 = 0.0, 0.0, 0.0
 
 def generate_pdf(details, total, user):
     pdf = FPDF()
@@ -82,7 +68,7 @@ def generate_pdf(details, total, user):
     pdf.set_font("Arial", "B", 16)
     pdf.cell(200, 10, "Kalkulations-Beleg", ln=True, align="C")
     pdf.set_font("Arial", "", 10)
-    pdf.cell(200, 10, f"Erstellt von: {user}", ln=True, align="C")
+    pdf.cell(200, 10, f"Erstellt von: {user} | Datum: {datetime.now().strftime('%d.%m.%Y')}", ln=True, align="C")
     pdf.ln(5)
     pdf.set_font("Arial", "B", 12)
     pdf.cell(100, 8, "Position", border=1); pdf.cell(40, 8, "Anzahl", border=1); pdf.cell(40, 8, "Summe", border=1, ln=True)
@@ -94,8 +80,8 @@ def generate_pdf(details, total, user):
     return pdf.output(dest="S").encode("latin-1")
 
 # --- UI ---
-st.title("🌿 Floristik Kalkulator Pro")
-st.caption(f"Angemeldet als: {st.session_state.user_name}")
+st.title("🌿 Floristik Kalkulator")
+st.caption(f"Benutzer: {st.session_state.user_name}")
 
 with st.sidebar:
     st.header("Zusatzkosten")
@@ -117,7 +103,7 @@ grand_total = mat_sum + gruen_sum + schleif_sum + labor_sum + e0 + e1 + e2
 
 m1, m2, m3 = st.columns(3)
 m1.metric("Blumen & Grün", f"{mat_sum + gruen_sum:.2f} €")
-m2.metric("Extras & Arbeit", f"{labor_sum + e0 + e1 + e2 + schleif_sum:.2f} €")
+m2.metric("Zubehör & Arbeit", f"{labor_sum + e0 + e1 + e2 + schleif_sum:.2f} €")
 m3.subheader(f"GESAMT: {grand_total:.2f} €")
 
 st.divider()
