@@ -2,36 +2,21 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 
-st.set_page_config(page_title="Floristik Kalkulator Pro", layout="wide")
+# Verhindert, dass Browser die Seite übersetzen wollen (attribut: translate="no")
+st.set_page_config(page_title="Kalkulator", layout="wide")
 
-# --- ULTRA-SPEZIFISCHES CSS FÜR TABLETS ---
+st.markdown('<div translate="no">', unsafe_allow_html=True)
+
+# --- MINIMAL-DESIGN FÜR STABILITÄT ---
 st.markdown("""
 <style>
-    /* Grund-Design für alle Buttons */
     div.stButton > button {
-        height: 4.5em !important;
-        font-weight: bold !important;
-        border-radius: 12px !important;
-        border: 2px solid #333 !important;
-        -webkit-appearance: none; /* Fix für iOS/Safari */
+        height: 4em;
+        font-weight: bold;
+        border-radius: 10px;
+        border: 1px solid #ccc !important;
     }
-
-    /* Farben erzwingen über das Aria-Label (der Text auf dem Button) */
-    /* Grün-Kategorie */
-    button[aria-label*="Pistazie"] { background-color: #90be6d !important; color: white !important; }
-    button[aria-label*="Euka"] { background-color: #43aa8b !important; color: white !important; }
-    button[aria-label*="Salal"] { background-color: #4d908e !important; color: white !important; }
-    button[aria-label*="Baergras"] { background-color: #277da1 !important; color: white !important; }
-    button[aria-label*="Aralien"] { background-color: #f9c74f !important; color: black !important; }
-    
-    /* Schleifen-Kategorie */
-    button[aria-label*="Schleife kurz"] { background-color: #f3722c !important; color: white !important; }
-    button[aria-label*="Schleife lang"] { background-color: #f94144 !important; color: white !important; }
-    
-    /* Funktions-Buttons */
-    button[aria-label*="Minute"] { background-color: #577590 !important; color: white !important; }
-    button[aria-label*="RESET"] { background-color: #333 !important; color: white !important; }
-    button[aria-label*="PDF"] { background-color: #ffffff !important; color: black !important; border: 3px solid #000 !important; }
+    /* Wir lassen die Farben weg, um Konflikte mit dem Tablet-Browser zu vermeiden */
 </style>
 """, unsafe_allow_html=True)
 
@@ -66,7 +51,7 @@ def generate_pdf(details, total):
     return pdf.output(dest="S").encode("latin-1")
 
 # --- UI ---
-st.title("🌿 Floristik Kalkulator Pro")
+st.title("🌿 Floristik Kalkulator")
 
 with st.sidebar:
     st.header("Zusatzkosten")
@@ -74,6 +59,7 @@ with st.sidebar:
     e1 = st.number_input("Extra 1 (€)", min_value=0.0, step=0.1, key="e1")
     e2 = st.number_input("Extra 2 (€)", min_value=0.0, step=0.1, key="e2")
 
+# Berechnung
 mat_sum = sum(k * v for k, v in st.session_state.c_mat.items())
 gruen_p = {"Pistazie": 1.50, "Euka": 2.50, "Salal": 1.50, "Baergras": 0.60, "Aralien": 0.90}
 gruen_sum = sum(st.session_state.c_gruen[n] * gruen_p[n] for n in st.session_state.c_gruen)
@@ -104,8 +90,7 @@ with t2:
     g_icons = ["🌱 Pistazie", "🍃 Euka", "🌿 Salal", "🌾 Baergras", "🌻 Aralien"]
     for i, name in enumerate(gruen_p.keys()):
         with g_cols[i]:
-            # Wir nutzen hier nur das Icon und den Namen im Button
-            if st.button(f"{g_icons[i]}\n{gruen_p[name]:.2f}€", key=f"btn_g_{name}", use_container_width=True):
+            if st.button(f"{g_icons[i]}\n{gruen_p[name]:.2f}€", key=f"g_{name}", use_container_width=True):
                 st.session_state.c_gruen[name] += 1
                 st.rerun()
             st.write(f"Anz: **{st.session_state.c_gruen[name]}**")
@@ -114,26 +99,26 @@ with t3:
     ca, cb = st.columns(2)
     with ca:
         st.subheader("Arbeitszeit")
-        if st.button("➕ 1 Minute (0,80 €)", key="btn_labor_act"):
+        if st.button("➕ 1 Minute hinzufügen", key="btn_labor"):
             st.session_state.c_labor += 1
             st.rerun()
         st.info(f"Zeit: {st.session_state.c_labor} Min = {labor_sum:.2f} €")
     with cb:
         st.subheader("Schleifen")
-        if st.button("🎗️ Schleife kurz (15€)", key="s_kurz_btn", use_container_width=True):
+        if st.button("🎗️ Schleife kurz (15€)", key="s_kurz", use_container_width=True):
             st.session_state.c_schleife["Schleife kurz/schmal"] += 1
             st.rerun()
-        if st.button("🎀 Schleife lang (20€)", key="s_lang_btn", use_container_width=True):
+        if st.button("🎀 Schleife lang (20€)", key="s_lang", use_container_width=True):
             st.session_state.c_schleife["Schleife lang/breit"] += 1
             st.rerun()
 
 st.divider()
-if st.button("♻️ RESET / ALLES LÖSCHEN", key="reset_all_final", on_click=reset_callback, use_container_width=True):
+if st.button("♻️ ALLES LÖSCHEN", key="reset_btn", on_click=reset_callback, use_container_width=True):
     pass
 
 dt = []
 for p, c in st.session_state.c_mat.items():
-    if c > 0: dt.append({"Pos": f"Material {p:.2f}EUR", "Anz": c, "Sum": p*c})
+    if c > 0: dt.append({"Pos": f"Mat {p:.2f}EUR", "Anz": c, "Sum": p*c})
 for n, c in st.session_state.c_gruen.items():
     if c > 0: dt.append({"Pos": n, "Anz": c, "Sum": c*gruen_p[n]})
 for n, c in st.session_state.c_schleife.items():
@@ -147,3 +132,4 @@ if dt:
     pdf_b = generate_pdf(dt, grand_total)
     st.download_button("📄 PDF-BELEG SPEICHERN", data=pdf_b, file_name="Kalkulation.pdf", mime="application/pdf", use_container_width=True)
 
+st.markdown('</div>', unsafe_allow_html=True)
