@@ -100,7 +100,7 @@ mat_sum = sum(k * v for k, v in st.session_state.c_mat.items())
 for p, c in st.session_state.c_mat.items():
     if c > 0: dt.append({"Pos": f"Material {p:.2f} EUR", "Anz": c, "Sum": p*c})
 
-gruen_p = {"Pistazie": 1.50, "Euka": 2.50, "Salal": 1.50, "Baergras": 0.60, "Aralien": 0.90}
+gruen_p = {"Pistazie": 1.50, "Euka": 2.50, "Salal": 1.50, "Baergras": 0.60, "Chico": 1.20}
 gruen_sum = sum(st.session_state.c_gruen[n] * gruen_p[n] for n in st.session_state.c_gruen)
 for n, c in st.session_state.c_gruen.items():
     if c > 0: dt.append({"Pos": n, "Anz": c, "Sum": c*gruen_p[n]})
@@ -187,6 +187,7 @@ with f2:
         st.button("PDF (Liste leer)", disabled=True, use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
