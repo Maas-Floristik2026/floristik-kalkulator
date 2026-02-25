@@ -141,7 +141,7 @@ with t1:
 
 with t2:
     g_cols = st.columns(5)
-    g_icons = ["Pistazie", "Euka", "Salal", "Baergras", "Aralien"]
+    g_icons = ["Pistazie", "Euka", "Salal", "Baergras", "Chico"]
     for i, name in enumerate(gruen_p.keys()):
         with g_cols[i]:
             if st.button(f"{g_icons[i]}\n{gruen_p[name]:.2f} EUR", key=f"g_{name}", use_container_width=True):
@@ -187,6 +187,7 @@ with f2:
         st.button("PDF (Liste leer)", disabled=True, use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
