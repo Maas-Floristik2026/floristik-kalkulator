@@ -46,7 +46,7 @@ st.markdown("""
 
 # INITIALISIERUNG
 if 'c_mat' not in st.session_state: st.session_state.c_mat = {round(x * 0.1, 2): 0 for x in range(5, 101)}
-if 'c_gruen' not in st.session_state: st.session_state.c_gruen = {"Pistazie": 0, "Euka": 0, "Salal": 0, "Baergras": 0, "Aralien": 0}
+if 'c_gruen' not in st.session_state: st.session_state.c_gruen = {"Pistazie": 0, "Euka": 0, "Salal": 0, "Baergras": 0, "Chico": 0}
 if 'c_schleife' not in st.session_state: st.session_state.c_schleife = {"Schleife kurz/schmal": 0, "Schleife lang/breit": 0}
 if 'c_labor' not in st.session_state: st.session_state.c_labor = 0
 
@@ -187,6 +187,7 @@ with f2:
         st.button("PDF (Liste leer)", disabled=True, use_container_width=True)
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
