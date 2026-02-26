@@ -4,7 +4,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # --- 1. SETUP ---
-st.set_page_config(page_title="Floristik Kalkulator V36", layout="wide")
+st.set_page_config(page_title="Floristik Kalkulator V37", layout="wide")
 
 # --- 2. LOGIN ---
 LIZENZ_DB = {
@@ -27,30 +27,18 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# --- 3. CSS (FÜR DEN TOUCH-PC OPTIMIERT) ---
+# --- 3. CSS (MINIMALISTISCH & SCHNELL) ---
 st.markdown("""
 <style>
-    /* Zwingt alle Spalten auf eine einheitliche Höhe */
     [data-testid="column"] {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 10px !important;
-        min-height: 110px !important;
-        margin-bottom: 5px !important;
+        padding: 5px !important;
     }
-    /* Buttons */
     div.stButton > button {
-        height: 3em !important;
+        height: 3.5em !important;
         font-weight: bold !important;
+        font-size: 1em !important;
+        border-radius: 8px !important;
     }
-    /* Minus-Bereich */
-    .minus-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 5px;
-    }
-    /* Numpad Display */
     .lcd-display {
         background-color: #000;
         color: #39FF14;
@@ -64,7 +52,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. DATEN INITIALISIEREN ---
+# --- 4. DATEN ---
 if 'c_mat' not in st.session_state: st.session_state.c_mat = {round(x * 0.1, 2): 0 for x in range(5, 101)}
 if 'c_gr' not in st.session_state: st.session_state.c_gr = {"Pistazie": 0, "Euka": 0, "Salal": 0, "Baergras": 0, "Chico": 0}
 if 'c_sch' not in st.session_state: st.session_state.c_sch = {"Schleife klein": 0, "Schleife groß": 0}
@@ -80,29 +68,28 @@ def reset_all():
     st.session_state.c_lab = 0
     st.session_state.e0 = st.session_state.e1 = st.session_state.e2 = 0.0
 
-# --- 5. SIDEBAR (NUMPAD) ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
-    st.subheader("Zusatzkosten (Touch)")
-    # Einfachere Auswahl für mehr Geschwindigkeit
+    st.subheader("Zusatzkosten")
     wahl = st.radio("Feld:", ["Gefäß", "Extra 1", "Extra 2"], horizontal=True)
     mapping = {"Gefäß": "e0", "Extra 1": "e1", "Extra 2": "e2"}
     target = mapping[wahl]
     
     st.markdown(f'<div class="lcd-display">{st.session_state[target]:.2f} €</div>', unsafe_allow_html=True)
     
-    # Schnelles Numpad (ohne Buffer, direktes Rechnen)
+    # Numpad (Direkt-Rechnung)
     for r in [[1,2,3], [4,5,6], [7,8,9]]:
         cols = st.columns(3)
         for i, val in enumerate(r):
-            if cols[i].button(str(val), key=f"num_{val}", use_container_width=True):
+            if cols[i].button(str(val), key=f"n_{wahl}_{val}", use_container_width=True):
                 st.session_state[target] = round(st.session_state[target] * 10 + val * 0.01, 2)
                 st.rerun()
     
     cb = st.columns(3)
-    if cb[0].button("0", use_container_width=True):
+    if cb[0].button("0", key=f"n_{wahl}_0", use_container_width=True):
         st.session_state[target] = round(st.session_state[target] * 10, 2)
         st.rerun()
-    if cb[1].button("C", use_container_width=True):
+    if cb[1].button("C", key=f"n_{wahl}_c", use_container_width=True):
         st.session_state[target] = 0.0
         st.rerun()
     
@@ -137,55 +124,38 @@ with tabs[0]:
         for j in range(8):
             if i + j < len(p_keys):
                 p = p_keys[i+j]
-                with cols[j]:
-                    if st.button(f"{p:.2f}", key=f"p_{p}", use_container_width=True):
-                        st.session_state.c_mat[p] += 1
-                        st.rerun()
-                    anz = st.session_state.c_mat[p]
-                    if anz > 0:
-                        # Einfache Zeile für Anzahl und Minus
-                        st.write(f"**{anz}x**")
-                        if st.button("—", key=f"m_{p}", use_container_width=True):
-                            st.session_state.c_mat[p] -= 1
-                            st.rerun()
+                anz = st.session_state.c_mat[p]
+                label = f"{p:.2f}" if anz == 0 else f"{p:.2f} ({anz}x)"
+                if cols[j].button(label, key=f"p_{p}", use_container_width=True):
+                    st.session_state.c_mat[p] += 1
+                    st.rerun()
 
 with tabs[1]:
     g_cols = st.columns(5)
     for i, name in enumerate(p_gr.keys()):
-        with g_cols[i]:
-            if st.button(f"{name}\n{p_gr[name]:.2f}", key=f"gr_{name}", use_container_width=True):
-                st.session_state.c_gr[name] += 1
-                st.rerun()
-            anz = st.session_state.c_gr[name]
-            if anz > 0:
-                st.write(f"**{anz}x**")
-                if st.button("—", key=f"mgr_{name}", use_container_width=True):
-                    st.session_state.c_gr[name] -= 1
-                    st.rerun()
+        anz = st.session_state.c_gr[name]
+        label = f"{name}\n{p_gr[name]:.2f}" if anz == 0 else f"{name}\n{p_gr[name]:.2f} ({anz}x)"
+        if g_cols[i].button(label, key=f"gr_{name}", use_container_width=True):
+            st.session_state.c_gr[name] += 1
+            st.rerun()
 
 with tabs[2]:
     ca, cb = st.columns(2)
     with ca:
         st.subheader("Arbeitszeit")
-        if st.button("➕ 1 Minute (0,80 €)", use_container_width=True):
+        anz = st.session_state.c_lab
+        label = "➕ 1 Minute (0,80 €)" if anz == 0 else f"➕ 1 Minute (Aktuell: {anz} Min)"
+        if st.button(label, use_container_width=True):
             st.session_state.c_lab += 1
             st.rerun()
-        if st.session_state.c_lab > 0:
-            st.info(f"{st.session_state.c_lab} Min = {sum_lab:.2f} €")
-            if st.button("— Minute abziehen", use_container_width=True):
-                st.session_state.c_lab -= 1
-                st.rerun()
     with cb:
         st.subheader("Schleifen")
         for sn, sp in p_sch.items():
-            if st.button(f"{sn} ({sp:.2f} €)", key=f"sch_{sn}", use_container_width=True):
+            anz = st.session_state.c_sch[sn]
+            label = f"{sn} ({sp:.2f} €)" if anz == 0 else f"{sn} ({sp:.2f} €) - {anz}x"
+            if st.button(label, key=f"sch_{sn}", use_container_width=True):
                 st.session_state.c_sch[sn] += 1
                 st.rerun()
-            if st.session_state.c_sch[sn] > 0:
-                st.write(f"**{st.session_state.c_sch[sn]}x**")
-                if st.button(f"— {sn} weg", key=f"msch_{sn}", use_container_width=True):
-                    st.session_state.c_sch[sn] -= 1
-                    st.rerun()
 
 with tabs[3]:
     st.button("♻️ ALLES LÖSCHEN", on_click=reset_all, use_container_width=True)
@@ -194,7 +164,13 @@ with tabs[3]:
         if c > 0: li.append({"Pos": f"Material {p:.2f} EUR", "Anz": c, "Sum": p*c})
     for n, c in st.session_state.c_gr.items():
         if c > 0: li.append({"Pos": n, "Anz": c, "Sum": c*p_gr[n]})
-    # ... weitere Positionen
+    for n, c in st.session_state.c_sch.items():
+        if c > 0: li.append({"Pos": n, "Anz": c, "Sum": c*p_sch[n]})
+    if st.session_state.c_lab > 0: li.append({"Pos": "Arbeit", "Anz": st.session_state.c_lab, "Sum": sum_lab})
+    if st.session_state.e0 > 0: li.append({"Pos": "Gefäß", "Anz": 1, "Sum": st.session_state.e0})
+    if st.session_state.e1 > 0: li.append({"Pos": "Extra 1", "Anz": 1, "Sum": st.session_state.e1})
+    if st.session_state.e2 > 0: li.append({"Pos": "Extra 2", "Anz": 1, "Sum": st.session_state.e2})
+
     if li:
         st.table(pd.DataFrame(li))
         def make_pdf():
