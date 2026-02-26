@@ -4,61 +4,83 @@ from fpdf import FPDF
 from datetime import datetime
 
 # --- SEITENKONFIGURATION ---
-st.set_page_config(page_title="Floristik Kalkulator V23", layout="wide")
+st.set_page_config(page_title="Floristik Kalkulator V24", layout="wide")
 
 # --- BENUTZER-VERWALTUNG ---
 LIZENZ_DATENBANK = {
     "Florist-1": {"name": "Florist-1-Laden", "valid_until": "2030-12-31"},
     "Florist-2": {"name": "Florist-2-Laden", "valid_until": "2030-12-31"},
     "Gast-Test-123": {"name": "Gastzugang", "valid_until": "2026-02-28"},
+    "FDF-Duisburg": {"name": "Gastzugang-2", "valid_until": "2026-02-28"},
 }
 
 if 'auth' not in st.session_state: st.session_state.auth = False
 if 'user_name' not in st.session_state: st.session_state.user_name = ""
 if 'active_field' not in st.session_state: st.session_state.active_field = "e0"
+if 'num_buffer' not in st.session_state: st.session_state.num_buffer = ""
 
-# LOGIN LOGIK
+# --- LOGIN LOGIK ---
 if not st.session_state.auth:
     st.title("🔐 Lizenz-Login")
-    key_input = st.text_input("Lizenzschluessel", type="password")
+    key_input = st.text_input("Lizenzschlüssel eingeben:", type="password")
     if st.button("Anmelden", use_container_width=True):
         if key_input in LIZENZ_DATENBANK:
-            st.session_state.auth = True
-            st.session_state.user_name = LIZENZ_DATENBANK[key_input]["name"]
-            st.rerun()
+            nutzer = LIZENZ_DATENBANK[key_input]
+            if datetime.now() <= datetime.strptime(nutzer["valid_until"], "%Y-%m-%d"):
+                st.session_state.auth = True
+                st.session_state.user_name = nutzer["name"]
+                st.rerun()
+            else:
+                st.error("Lizenz abgelaufen.")
+        else:
+            st.error("Falscher Schlüssel.")
     st.stop()
 
-# --- CSS FÜR KOMPAKT-LOOK & FARBEN ---
+# --- CSS FÜR FARBEN & KOMPAKT-LAYOUT ---
 st.markdown("""
 <style>
-    /* Hauptbuttons */
+    /* Hauptbuttons Design */
     div.stButton > button { 
         height: 3.2em !important; 
         font-weight: bold !important; 
-        font-size: 0.9em !important;
         border-radius: 8px !important; 
+        border: 1px solid #ccc !important;
     }
-    /* Mini-Minus Buttons */
-    .minus-container button {
+    
+    /* Der rote Korrektur-Button (Minus) */
+    .minus-btn button {
         background-color: #ff4b4b !important;
         color: white !important;
         height: 1.8em !important;
-        width: 1.8em !important;
-        min-width: 1.8em !important;
-        padding: 0px !important;
-        font-size: 0.7em !important;
-        margin-top: 5px !important;
+        width: 100% !important;
+        font-size: 0.8em !important;
+        padding: 0 !important;
         border: none !important;
     }
-    /* Numpad Styling */
-    .numpad button {
-        height: 3em !important;
+
+    /* Schnelles Numpad in der Sidebar */
+    .numpad-grid button {
+        height: 3.5em !important;
         background-color: #f0f2f6 !important;
+        font-size: 1.2em !important;
+    }
+    
+    /* Digitale Anzeige für Zusatzkosten */
+    .val-box {
+        background-color: #1e1e1e;
+        color: #00ff00;
+        padding: 10px;
+        border-radius: 5px;
+        font-family: 'Courier New', monospace;
+        font-size: 1.8em;
+        text-align: right;
+        border: 2px solid #333;
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# INITIALISIERUNG
+# --- INITIALISIERUNG DER DATEN ---
 if 'c_mat' not in st.session_state: st.session_state.c_mat = {round(x * 0.1, 2): 0 for x in range(5, 101)}
 if 'c_gruen' not in st.session_state: st.session_state.c_gruen = {"Pistazie": 0, "Euka": 0, "Salal": 0, "Baergras": 0, "Chico": 0}
 if 'c_schleife' not in st.session_state: st.session_state.c_schleife = {"Schleife kurz/schmal": 0, "Schleife lang/breit": 0}
@@ -73,48 +95,47 @@ def reset_callback():
     for k in st.session_state.c_schleife: st.session_state.c_schleife[k] = 0
     st.session_state.c_labor = 0
     st.session_state.e0, st.session_state.e1, st.session_state.e2 = 0.0, 0.0, 0.0
+    st.session_state.num_buffer = ""
 
-# --- HILFSFUNKTION FÜR NUMPAD ---
-def add_digit(digit):
-    field = st.session_state.active_field
-    current = str(st.session_state[field])
-    if current == "0.0": current = ""
-    new_val = current + str(digit)
-    try: st.session_state[field] = float(new_val)
-    except: pass
+# --- SCHNELLE NUMPAD-LOGIK ---
+def press_num(d):
+    st.session_state.num_buffer += str(d)
+    val = float(st.session_state.num_buffer) / 100
+    st.session_state[st.session_state.active_field] = val
 
-# --- UI ---
-st.title("🌿 Floristik Kalkulator Pro")
-
-# SEITENLEISTE MIT VIRTUELLEM NUMPAD
+# --- UI: SEITENLEISTE (ZUSATZKOSTEN) ---
 with st.sidebar:
     st.subheader("Zusatzkosten (Touch)")
     
-    # Auswahl des Feldes
-    col_a, col_b, col_c = st.columns(3)
-    if col_a.button("Gefaess", type="primary" if st.session_state.active_field=="e0" else "secondary"): st.session_state.active_field="e0"
-    if col_b.button("Extra 1", type="primary" if st.session_state.active_field=="e1" else "secondary"): st.session_state.active_field="e1"
-    if col_c.button("Extra 2", type="primary" if st.session_state.active_field=="e2" else "secondary"): st.session_state.active_field="e2"
+    # Feld-Auswahl
+    c_f1, c_f2, c_f3 = st.columns(3)
+    if c_f1.button("Gefäß", type="primary" if st.session_state.active_field=="e0" else "secondary"): 
+        st.session_state.active_field="e0"; st.session_state.num_buffer=""
+    if c_f2.button("Extra 1", type="primary" if st.session_state.active_field=="e1" else "secondary"): 
+        st.session_state.active_field="e1"; st.session_state.num_buffer=""
+    if c_f3.button("Extra 2", type="primary" if st.session_state.active_field=="e2" else "secondary"): 
+        st.session_state.active_field="e2"; st.session_state.num_buffer=""
     
-    st.write(f"Editierung: **{st.session_state.active_field}**")
-    val_disp = st.empty()
-    val_disp.code(f"{st.session_state[st.session_state.active_field]:.2f} EUR", language="text")
+    # Digitale Anzeige
+    current_val = st.session_state[st.session_state.active_field]
+    st.markdown(f'<div class="val-box">{current_val:.2f} EUR</div>', unsafe_allow_html=True)
 
-    # Das Numpad
-    st.markdown('<div class="numpad">', unsafe_allow_html=True)
-    n_cols = st.columns(3)
-    for i in range(1, 10):
-        if n_cols[(i-1)%3].button(str(i), key=f"num_{i}"):
-            f = st.session_state.active_field
-            st.session_state[f] = float(f"{int(st.session_state[f]*100)}{i}")/100
-            st.rerun()
-    if n_cols[0].button("0", key="num_0"):
-        f = st.session_state.active_field
-        st.session_state[f] = float(f"{int(st.session_state[f]*100)}0")/100
+    # Numpad-Gitter
+    st.markdown('<div class="numpad-grid">', unsafe_allow_html=True)
+    for row in [[1,2,3], [4,5,6], [7,8,9]]:
+        cols = st.columns(3)
+        for i, num in enumerate(row):
+            if cols[i].button(str(num), key=f"n_{num}", use_container_width=True):
+                press_num(num)
+                st.rerun()
+    
+    c_last = st.columns(3)
+    if c_last[0].button("0", key="n_0", use_container_width=True):
+        press_num(0)
         st.rerun()
-    if n_cols[1].button(".", key="num_dot"): pass # Vereinfacht auf 2 Nachkommastellen autom.
-    if n_cols[2].button("C", key="num_clear"):
+    if c_last[1].button("C", key="n_clr", use_container_width=True):
         st.session_state[st.session_state.active_field] = 0.0
+        st.session_state.num_buffer = ""
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
     
@@ -123,55 +144,64 @@ with st.sidebar:
         st.session_state.auth = False
         st.rerun()
 
-# BERECHNUNGEN
+# --- BERECHNUNGEN ---
 gruen_p = {"Pistazie": 1.50, "Euka": 2.50, "Salal": 1.50, "Baergras": 0.60, "Chico": 1.20}
 schleif_p = {"Schleife kurz/schmal": 15.00, "Schleife lang/breit": 20.00}
+
 mat_sum = sum(k * v for k, v in st.session_state.c_mat.items())
 gruen_sum = sum(st.session_state.c_gruen[n] * gruen_p[n] for n in st.session_state.c_gruen)
 schleif_sum = sum(st.session_state.c_schleife[n] * schleif_p[n] for n in st.session_state.c_schleife)
 labor_sum = st.session_state.c_labor * 0.80
 grand_total = mat_sum + gruen_sum + schleif_sum + labor_sum + st.session_state.e0 + st.session_state.e1 + st.session_state.e2
 
-# ANZEIGE
-c1, c2, c3 = st.columns(3)
-c1.metric("Blumen & Gruen", f"{mat_sum + gruen_sum:.2f} EUR")
-c2.metric("Extras & Arbeit", f"{labor_sum + st.session_state.e0 + st.session_state.e1 + st.session_state.e2 + schleif_sum:.2f} EUR")
-c3.subheader(f"GESAMT: {grand_total:.2f} EUR")
+# --- HEADER (METRIKEN) ---
+m1, m2, m3 = st.columns(3)
+m1.metric("Blumen & Grün", f"{mat_sum + gruen_sum:.2f} EUR")
+m2.metric("Extras & Arbeit", f"{labor_sum + st.session_state.e0 + st.session_state.e1 + st.session_state.e2 + schleif_sum:.2f} EUR")
+m3.subheader(f"GESAMT: {grand_total:.2f} EUR")
 
 st.divider()
-t1, t2, t3, t4 = st.tabs(["🌸 Preise", "🌿 Gruen", "🎀 Extras", "📋 Beleg"])
+
+# --- HAUPTBEREICH (TABS) ---
+t1, t2, t3, t4 = st.tabs(["🌸 Preise", "🌿 Grün", "🎀 Extras", "📋 Beleg"])
 
 with t1:
-    rows = [sorted(st.session_state.c_mat.keys())[i:i+8] for i in range(0, len(st.session_state.c_mat), 8)]
-    for row in rows:
+    p_keys = sorted(st.session_state.c_mat.keys())
+    for i in range(0, len(p_keys), 8):
         cols = st.columns(8)
-        for i, p_val in enumerate(row):
-            with cols[i]:
-                # Haupt-Button
-                st.button(f"{p_val:.2f}", key=f"m_{p_val}", on_click=lambda p=p_val: st.session_state.c_mat.update({p: st.session_state.c_mat[p] + 1}), use_container_width=True)
-                
-                # Kompakter Counter & Minus
-                if st.session_state.c_mat[p_val] > 0:
-                    c_left, c_right = st.columns([1,1])
-                    c_left.caption(f"**{st.session_state.c_mat[p_val]}x**")
-                    with c_right:
-                        st.markdown('<div class="minus-container">', unsafe_allow_html=True)
-                        if st.button("—", key=f"min_m_{p_val}"):
-                            st.session_state.c_mat[p_val] -= 1
-                            st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
+        for j in range(8):
+            if i + j < len(p_keys):
+                p = p_keys[i+j]
+                with cols[j]:
+                    if st.button(f"{p:.2f}", key=f"m_{p}", use_container_width=True):
+                        st.session_state.c_mat[p] += 1
+                        st.rerun()
+                    
+                    # Inline-Minus: Anzahl und Button nebeneinander
+                    count = st.session_state.c_mat[p]
+                    if count > 0:
+                        sub_l, sub_r = st.columns([1, 1])
+                        sub_l.markdown(f"<div style='text-align:center; font-size:0.9em; padding-top:5px;'>{count}x</div>", unsafe_allow_html=True)
+                        with sub_r:
+                            st.markdown('<div class="minus-btn">', unsafe_allow_html=True)
+                            if st.button("—", key=f"min_m_{p}"):
+                                st.session_state.c_mat[p] -= 1
+                                st.rerun()
+                            st.markdown('</div>', unsafe_allow_html=True)
 
 with t2:
     g_cols = st.columns(5)
-    g_names = list(gruen_p.keys())
-    for i, name in enumerate(g_names):
+    for i, name in enumerate(gruen_p.keys()):
         with g_cols[i]:
-            st.button(f"{name}\n{gruen_p[name]:.2f}", key=f"g_{name}", use_container_width=True, on_click=lambda n=name: st.session_state.c_gruen.update({n: st.session_state.c_gruen[n] + 1}))
-            if st.session_state.c_gruen[name] > 0:
-                c_l, c_r = st.columns([1,1])
-                c_l.write(f"**{st.session_state.c_gruen[name]}x**")
-                with c_r:
-                    st.markdown('<div class="minus-container">', unsafe_allow_html=True)
+            if st.button(f"{name}\n{gruen_p[name]:.2f}", key=f"g_{name}", use_container_width=True):
+                st.session_state.c_gruen[name] += 1
+                st.rerun()
+            count = st.session_state.c_gruen[name]
+            if count > 0:
+                sub_l, sub_r = st.columns([1, 1])
+                sub_l.markdown(f"<div style='text-align:center; padding-top:5px;'>{count}x</div>", unsafe_allow_html=True)
+                with sub_r:
+                    st.markdown('<div class="minus-btn">', unsafe_allow_html=True)
                     if st.button("—", key=f"min_g_{name}"):
                         st.session_state.c_gruen[name] -= 1
                         st.rerun()
@@ -180,36 +210,57 @@ with t2:
 with t3:
     ca, cb = st.columns(2)
     with ca:
-        st.subheader("Arbeit")
-        st.button("➕ 1 Min", key="btn_labor", on_click=lambda: st.session_state.update({"c_labor": st.session_state.c_labor + 1}))
-        st.write(f"Zeit: {st.session_state.c_labor} Min")
+        st.subheader("Arbeitszeit")
+        if st.button("➕ 1 Min hinzufügen", key="btn_labor"): st.session_state.c_labor += 1; st.rerun()
         if st.session_state.c_labor > 0:
-            st.markdown('<div class="minus-container">', unsafe_allow_html=True)
-            if st.button("— 1 Min", key="min_labor"):
-                st.session_state.c_labor -= 1
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.info(f"Zeit: {st.session_state.c_labor} Min")
+            if st.button("— Min abziehen", key="min_labor"): st.session_state.c_labor -= 1; st.rerun()
     with cb:
         st.subheader("Schleifen")
         for s_name, s_price in schleif_p.items():
-            st.button(f"{s_name} ({s_price}€)", key=f"s_{s_name}", on_click=lambda n=s_name: st.session_state.c_schleife.update({n: st.session_state.c_schleife[n] + 1}))
+            if st.button(f"{s_name} ({s_price} EUR)", key=f"s_{s_name}", use_container_width=True):
+                st.session_state.c_schleife[s_name] += 1; st.rerun()
             if st.session_state.c_schleife[s_name] > 0:
-                st.markdown('<div class="minus-container">', unsafe_allow_html=True)
-                if st.button(f"— {s_name}", key=f"min_s_{s_name}"):
-                    st.session_state.c_schleife[s_name] -= 1
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.write(f"Anzahl: {st.session_state.c_schleife[s_name]}x")
+                if st.button(f"— {s_name} entfernen", key=f"min_s_{s_name}"):
+                    st.session_state.c_schleife[s_name] -= 1; st.rerun()
 
-# RESET & PDF (In Tab 4 für maximale Übersicht)
 with t4:
-    st.button("ALLES LOESCHEN (RESET)", key="reset_btn", on_click=reset_callback, use_container_width=True)
-    # Beleg-Tabelle
+    st.button("♻️ ALLES LÖSCHEN", key="reset_btn", on_click=reset_callback, use_container_width=True)
     dt = []
     for p, c in st.session_state.c_mat.items():
         if c > 0: dt.append({"Pos": f"Material {p:.2f} EUR", "Anz": c, "Sum": p*c})
     for n, c in st.session_state.c_gruen.items():
         if c > 0: dt.append({"Pos": n, "Anz": c, "Sum": c*gruen_p[n]})
-    # ... (Rest der dt befüllung)
-    if dt: st.table(pd.DataFrame(dt))
+    for n, c in st.session_state.c_schleife.items():
+        if c > 0: dt.append({"Pos": n, "Anz": c, "Sum": c*schleif_p[n]})
+    if st.session_state.c_labor > 0: dt.append({"Pos": "Arbeitszeit", "Anz": st.session_state.c_labor, "Sum": labor_sum})
+    if st.session_state.e0 > 0: dt.append({"Pos": "Gefäß/Unterlage", "Anz": 1, "Sum": st.session_state.e0})
+    if st.session_state.e1 > 0: dt.append({"Pos": "Extra 1", "Anz": 1, "Sum": st.session_state.e1})
+    if st.session_state.e2 > 0: dt.append({"Pos": "Extra 2", "Anz": 1, "Sum": st.session_state.e2})
+    
+    if dt: 
+        st.table(pd.DataFrame(dt))
+        # PDF-Export
+        def generate_pdf_file():
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(200, 10, "Kalkulations-Beleg", ln=True, align="C")
+            pdf.set_font("Arial", "", 10)
+            pdf.cell(200, 10, f"Nutzer: {st.session_state.user_name} | {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=True, align="C")
+            pdf.ln(5)
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(100, 8, "Position", border=1); pdf.cell(35, 8, "Anzahl", border=1); pdf.cell(45, 8, "Summe", border=1, ln=True)
+            pdf.set_font("Arial", "", 12)
+            for d in dt:
+                pdf.cell(100, 8, str(d['Pos']), border=1); pdf.cell(35, 8, str(d['Anz']), border=1); pdf.cell(45, 8, f"{d['Sum']:.2f} EUR", border=1, ln=True)
+            pdf.ln(10); pdf.set_font("Arial", "B", 14)
+            pdf.cell(180, 10, f"GESAMT: {grand_total:.2f} EUR", ln=True, align="R")
+            return pdf.output(dest="S").encode("latin-1")
+        
+        st.download_button("📄 BELEG ALS PDF SPEICHERN", data=generate_pdf_file(), file_name=f"Beleg_{datetime.now().strftime('%H%M')}.pdf", mime="application/pdf", use_container_width=True)
+    else:
+        st.write("Noch keine Positionen erfasst.")
 
 st.markdown('</div>', unsafe_allow_html=True)
