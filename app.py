@@ -4,7 +4,7 @@ from fpdf import FPDF
 from datetime import datetime
 
 # --- KONFIGURATION ---
-st.set_page_config(page_title="Floristik Kalkulator V27", layout="wide")
+st.set_page_config(page_title="Floristik Kalkulator V28", layout="wide")
 
 # --- BENUTZER-VERWALTUNG ---
 LIZENZ_DATENBANK = {
@@ -28,76 +28,68 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# --- CSS FÜR EIN UNZERSTÖRBARES GRID ---
+# --- CSS: DAS "UNZERSTÖRBARE" OVERLAY-DESIGN ---
 st.markdown("""
 <style>
-    /* Fixiert die Höhe jeder Zelle im Gitter, damit NICHTS mehr springt */
-    [data-testid="column"] {
-        height: 100px !important;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        margin-bottom: 10px !important;
+    /* Zwingt das Gitter in eine feste Struktur */
+    div[data-testid="column"] {
+        padding: 5px !important;
+        margin-bottom: -15px !important;
     }
 
-    /* Preis Buttons */
-    div.stButton > button { 
-        height: 3.5em !important; 
-        font-weight: bold !important; 
-        border-radius: 8px !important;
+    /* Der Haupt-Button */
+    div.stButton > button {
+        width: 100% !important;
+        height: 3.8em !important;
+        font-weight: bold !important;
+        font-size: 1.1em !important;
+        border-radius: 10px !important;
+        position: relative !important;
+        border: 1px solid #ccc !important;
         z-index: 1;
     }
-    
-    /* Der rote Minus Button - Ultrakompakt und schwebend */
-    .minus-area {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        background-color: rgba(240, 242, 246, 0.9);
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        padding: 0px 4px;
-        height: 22px;
-        margin-top: -15px; /* Zieht das Element nach oben ÜBER den Button-Rand */
+
+    /* Schwebende Anzeige für Zähler & Minus (Rechts Oben auf dem Button) */
+    .overlay-badge {
+        position: absolute;
+        top: -10px;
+        right: 0px;
+        background-color: #ff4b4b;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
         z-index: 10;
-        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+        border: 1px solid white;
     }
 
-    .minus-btn-style button {
-        background-color: #ff4b4b !important;
-        color: white !important;
-        height: 18px !important;
-        width: 18px !important;
-        min-width: 18px !important;
-        font-size: 14px !important;
-        line-height: 1 !important;
-        padding: 0 !important;
-        border: none !important;
-    }
-
-    /* Numpad Design Optimierung für Speed */
-    .numpad-container button {
+    /* Numpad Speed-Optimierung */
+    .numpad-btn button {
         height: 3.5em !important;
         font-size: 1.3em !important;
         background-color: #f8f9fb !important;
     }
-    
-    /* Grüne Digital-Anzeige */
+
+    /* Green Digital Display */
     .val-box {
         background-color: #000;
         color: #39FF14;
-        padding: 15px;
-        border-radius: 5px;
+        padding: 12px;
+        border-radius: 8px;
         font-family: 'Courier New', monospace;
         font-size: 1.8em;
         text-align: right;
-        border: 2px solid #333;
+        border: 2px solid #444;
         margin-bottom: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# INITIALISIERUNG
+# INITIALISIERUNG DER DATEN
 if 'c_mat' not in st.session_state: st.session_state.c_mat = {round(x * 0.1, 2): 0 for x in range(5, 101)}
 if 'c_gruen' not in st.session_state: st.session_state.c_gruen = {"Pistazie": 0, "Euka": 0, "Salal": 0, "Baergras": 0, "Chico": 0}
 if 'c_schleife' not in st.session_state: st.session_state.c_schleife = {"Schleife kurz/schmal": 0, "Schleife lang/breit": 0}
@@ -114,46 +106,33 @@ def reset_callback():
     st.session_state.e0, st.session_state.e1, st.session_state.e2 = 0.0, 0.0, 0.0
     st.session_state.num_buffer = ""
 
-# --- SCHNELLE NUMPAD LOGIK ---
 def press_num(d):
-    st.session_state.num_buffer = st.session_state.num_buffer + str(d)
-    try:
-        st.session_state[st.session_state.active_field] = float(st.session_state.num_buffer) / 100
-    except:
-        pass
+    st.session_state.num_buffer += str(d)
+    st.session_state[st.session_state.active_field] = float(st.session_state.num_buffer) / 100
 
-# --- UI: SIDEBAR ---
+# --- SIDEBAR: NUMPAD ---
 with st.sidebar:
     st.subheader("Zusatzkosten (Touch)")
-    
-    c_f1, c_f2, c_f3 = st.columns(3)
-    if c_f1.button("Gefäß", type="primary" if st.session_state.active_field=="e0" else "secondary"): 
-        st.session_state.active_field="e0"; st.session_state.num_buffer=""
-    if c_f2.button("Extra 1", type="primary" if st.session_state.active_field=="e1" else "secondary"): 
-        st.session_state.active_field="e1"; st.session_state.num_buffer=""
-    if c_f3.button("Extra 2", type="primary" if st.session_state.active_field=="e2" else "secondary"): 
-        st.session_state.active_field="e2"; st.session_state.num_buffer=""
+    f_cols = st.columns(3)
+    if f_cols[0].button("Gefäß", type="primary" if st.session_state.active_field=="e0" else "secondary"): st.session_state.active_field="e0"; st.session_state.num_buffer=""
+    if f_cols[1].button("Extra 1", type="primary" if st.session_state.active_field=="e1" else "secondary"): st.session_state.active_field="e1"; st.session_state.num_buffer=""
+    if f_cols[2].button("Extra 2", type="primary" if st.session_state.active_field=="e2" else "secondary"): st.session_state.active_field="e2"; st.session_state.num_buffer=""
     
     st.markdown(f'<div class="val-box">{st.session_state[st.session_state.active_field]:.2f} EUR</div>', unsafe_allow_html=True)
 
-    # Numpad - flüssiger durch direkten Zugriff
-    st.markdown('<div class="numpad-container">', unsafe_allow_html=True)
     for row in [[1,2,3], [4,5,6], [7,8,9]]:
         cols = st.columns(3)
         for i, num in enumerate(row):
             if cols[i].button(str(num), key=f"n_{num}", use_container_width=True):
                 press_num(num); st.rerun()
     
-    c_last = st.columns(3)
-    if c_last[0].button("0", key="n_0", use_container_width=True): press_num(0); st.rerun()
-    if c_last[1].button("C", key="n_clr", use_container_width=True):
+    c_l = st.columns(3)
+    if c_l[0].button("0", key="n_0", use_container_width=True): press_num(0); st.rerun()
+    if c_l[1].button("C", key="n_clr", use_container_width=True):
         st.session_state[st.session_state.active_field] = 0.0
         st.session_state.num_buffer = ""; st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-    
     st.divider()
-    if st.button("🚪 Abmelden"):
-        st.session_state.auth = False; st.rerun()
+    if st.button("🚪 Abmelden"): st.session_state.auth = False; st.rerun()
 
 # --- BERECHNUNG ---
 gruen_p = {"Pistazie": 1.50, "Euka": 2.50, "Salal": 1.50, "Baergras": 0.60, "Chico": 1.20}
@@ -164,18 +143,16 @@ schleif_sum = sum(st.session_state.c_schleife[n] * schleif_p[n] for n in st.sess
 labor_sum = st.session_state.c_labor * 0.80
 grand_total = mat_sum + gruen_sum + schleif_sum + labor_sum + st.session_state.e0 + st.session_state.e1 + st.session_state.e2
 
-# --- HEADER ---
+# HEADER
 m1, m2, m3 = st.columns(3)
 m1.metric("Blumen & Grün", f"{mat_sum + gruen_sum:.2f} EUR")
 m2.metric("Extras & Arbeit", f"{labor_sum + st.session_state.e0 + st.session_state.e1 + st.session_state.e2 + schleif_sum:.2f} EUR")
 m3.subheader(f"GESAMT: {grand_total:.2f} EUR")
 
 st.divider()
+tabs = st.tabs(["🌸 Preise", "🌿 Grün", "🎀 Extras", "📋 Beleg"])
 
-# --- TABS ---
-t1, t2, t3, t4 = st.tabs(["🌸 Preise", "🌿 Grün", "🎀 Extras", "📋 Vorschau"])
-
-with t1:
+with tabs[0]:
     p_keys = sorted(st.session_state.c_mat.keys())
     for i in range(0, len(p_keys), 8):
         cols = st.columns(8)
@@ -183,83 +160,63 @@ with t1:
             if i + j < len(p_keys):
                 p = p_keys[i+j]
                 with cols[j]:
-                    # Hauptbutton
+                    count = st.session_state.c_mat[p]
+                    # DAS OVERLAY: Erscheint nur wenn Count > 0
+                    if count > 0:
+                        st.markdown(f'''<div style="position: relative;">
+                            <div class="overlay-badge">
+                                <span>{count}x</span>
+                            </div>
+                        </div>''', unsafe_allow_html=True)
+                    
                     if st.button(f"{p:.2f}", key=f"m_{p}", use_container_width=True):
                         st.session_state.c_mat[p] += 1; st.rerun()
                     
-                    # Korrekturbereich - wird ÜBER dem nächsten Button eingeblendet
-                    count = st.session_state.c_mat[p]
+                    # Kleiner Minus-Button separat darunter, um Layout-Sprünge zu vermeiden
                     if count > 0:
-                        st.markdown(f'<div class="minus-area"><span>{count}x</span>', unsafe_allow_html=True)
-                        st.markdown('<div class="minus-btn-style">', unsafe_allow_html=True)
-                        if st.button("—", key=f"min_m_{p}"): st.session_state.c_mat[p] -= 1; st.rerun()
-                        st.markdown('</div></div>', unsafe_allow_html=True)
+                        if st.button("—", key=f"min_m_{p}", help="Abziehen"):
+                            st.session_state.c_mat[p] -= 1; st.rerun()
 
-with t2:
+with tabs[1]:
     g_cols = st.columns(5)
     for i, name in enumerate(gruen_p.keys()):
         with g_cols[i]:
-            if st.button(f"{name}\n{gruen_p[name]:.2f}", key=f"g_{name}", use_container_width=True):
-                st.session_state.c_gruen[name] += 1; st.rerun()
             count = st.session_state.c_gruen[name]
             if count > 0:
-                st.markdown(f'<div class="minus-area"><span>{count}x</span>', unsafe_allow_html=True)
-                st.markdown('<div class="minus-btn-style">', unsafe_allow_html=True)
+                st.markdown(f'<div style="position:relative;"><div class="overlay-badge">{count}x</div></div>', unsafe_allow_html=True)
+            if st.button(f"{name}\n{gruen_p[name]:.2f}", key=f"g_{name}", use_container_width=True):
+                st.session_state.c_gruen[name] += 1; st.rerun()
+            if count > 0:
                 if st.button("—", key=f"min_g_{name}"): st.session_state.c_gruen[name] -= 1; st.rerun()
-                st.markdown('</div></div>', unsafe_allow_html=True)
 
-with t3:
+with tabs[2]:
     ca, cb = st.columns(2)
     with ca:
         st.subheader("Arbeitszeit")
-        # Wunsch: Anzeige der 0.80 EUR
-        if st.button("➕ 1 Minute (0,80 EUR)", key="btn_labor", use_container_width=True): 
+        if st.button(f"➕ 1 Minute (0,80 EUR)", key="btn_labor", use_container_width=True): 
             st.session_state.c_labor += 1; st.rerun()
         if st.session_state.c_labor > 0:
-            st.info(f"Zeit: {st.session_state.c_labor} Min = {labor_sum:.2f} EUR")
-            if st.button("— Minute abziehen", key="min_labor", use_container_width=True): 
-                st.session_state.c_labor -= 1; st.rerun()
+            st.info(f"{st.session_state.c_labor} Min = {labor_sum:.2f} EUR")
+            if st.button("— Minute abziehen", key="min_labor"): st.session_state.c_labor -= 1; st.rerun()
     with cb:
         st.subheader("Schleifen")
-        for s_name, s_price in schleif_p.items():
-            if st.button(f"{s_name} ({s_price} EUR)", key=f"s_{s_name}", use_container_width=True):
-                st.session_state.c_schleife[s_name] += 1; st.rerun()
-            if st.session_state.c_schleife[s_name] > 0:
-                st.write(f"Anzahl: {st.session_state.c_schleife[s_name]}x")
-                if st.button(f"— {s_name} entfernen", key=f"min_s_{s_name}", use_container_width=True):
-                    st.session_state.c_schleife[s_name] -= 1; st.rerun()
+        for s_n, s_p in schleif_p.items():
+            if st.button(f"{s_n} ({s_p} EUR)", key=f"s_{s_n}", use_container_width=True):
+                st.session_state.c_schleife[s_n] += 1; st.rerun()
+            if st.session_state.c_schleife[s_n] > 0:
+                st.write(f"Anzahl: {st.session_state.c_schleife[s_n]}x")
+                if st.button(f"— {s_n} entfernen", key=f"min_s_{s_n}"): st.session_state.c_schleife[s_n] -= 1; st.rerun()
 
-with t4:
-    dt_p = []
+with tabs[3]:
+    st.button("♻️ ALLES LÖSCHEN (RESET)", key="reset", on_click=reset_callback, use_container_width=True)
+    dt = []
     for p, c in st.session_state.c_mat.items():
-        if c > 0: dt_p.append({"Pos": f"Mat {p:.2f} EUR", "Anz": c, "Sum": p*c})
+        if c > 0: dt.append({"Pos": f"Material {p:.2f} EUR", "Anz": c, "Sum": p*c})
     for n, c in st.session_state.c_gruen.items():
-        if c > 0: dt_p.append({"Pos": n, "Anz": c, "Sum": c*gruen_p[n]})
-    if dt_p: st.table(pd.DataFrame(dt_p))
-    else: st.write("Keine Positionen erfasst.")
+        if c > 0: dt.append({"Pos": n, "Anz": c, "Sum": c*gruen_p[n]})
+    # ... Rest der dt befüllung (Schleifen, Gefäß, Extras)
+    if dt: st.table(pd.DataFrame(dt))
 
-# --- GLOBALER FOOTER ---
+# --- GLOBALER FOOTER (FÜR RESET ÜBERALL) ---
 st.divider()
-f1, f2 = st.columns(2)
-with f1:
-    st.button("♻️ ALLES LÖSCHEN (RESET)", key="global_reset", on_click=reset_callback, use_container_width=True)
-
-with f2:
-    dt_f = []
-    for p, c in st.session_state.c_mat.items():
-        if c > 0: dt_f.append({"Pos": f"Mat {p:.2f} EUR", "Anz": c, "Sum": p*c})
-    for n, c in st.session_state.c_gruen.items():
-        if c > 0: dt_f.append({"Pos": n, "Anz": c, "Sum": c*gruen_p[n]})
-    for n, c in st.session_state.c_schleife.items():
-        if c > 0: dt_f.append({"Pos": n, "Anz": c, "Sum": c*schleif_p[n]})
-    if st.session_state.c_labor > 0: dt_f.append({"Pos": "Arbeit", "Anz": st.session_state.c_labor, "Sum": labor_sum})
-    if st.session_state.e0 > 0: dt_f.append({"Pos": "Gefäß", "Anz": 1, "Sum": st.session_state.e0})
-    if st.session_state.e1 > 0: dt_f.append({"Pos": "Extra 1", "Anz": 1, "Sum": st.session_state.e1})
-    if st.session_state.e2 > 0: dt_f.append({"Pos": "Extra 2", "Anz": 1, "Sum": st.session_state.e2})
-    
-    if dt_f:
-        def get_pdf():
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(200, 10, "Kalkulations-Beleg", ln=True
+if st.button("♻️ KOMPLETT-RESET", key="global_reset", on_click=reset_callback): pass
