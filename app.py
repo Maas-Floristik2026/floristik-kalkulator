@@ -4,12 +4,13 @@ from fpdf import FPDF
 from datetime import datetime
 
 # --- KONFIGURATION ---
-st.set_page_config(page_title="Floristik Kalkulator V29", layout="wide")
+st.set_page_config(page_title="Floristik Kalkulator V30", layout="wide")
 
 # --- BENUTZER-VERWALTUNG ---
 LIZENZ_DATENBANK = {
     "Florist-1": {"name": "Florist-1-Laden", "valid_until": "2030-12-31"},
     "Florist-2": {"name": "Florist-2-Laden", "valid_until": "2030-12-31"},
+    "Gast-Test": {"name": "Gast", "valid_until": "2026-12-31"}
 }
 
 if 'auth' not in st.session_state: st.session_state.auth = False
@@ -28,32 +29,33 @@ if not st.session_state.auth:
             st.rerun()
     st.stop()
 
-# --- CSS FÜR GESCHWINDIGKEIT & FIXIERTES GRID ---
+# --- CSS FÜR EIN UNZERSTÖRBARES GRID & PERFORMANCE ---
 st.markdown("""
 <style>
-    /* Verhindert das Springen der Seite bei Interaktion */
-    [data-testid="stAppViewBlockContainer"] { padding-top: 2rem; }
-    
-    /* Zwingt das Gitter in eine absolut feste Struktur */
-    div[data-testid="column"] {
-        min-height: 110px !important;
-        max-height: 110px !important;
+    /* Zwingt jede Preis-Spalte auf eine absolut identische Höhe */
+    [data-testid="column"] {
+        min-height: 125px !important;
+        max-height: 125px !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        overflow: visible !important;
     }
 
-    /* Der Haupt-Button */
+    /* Haupt-Preis Buttons */
     div.stButton > button {
-        width: 100% !important;
-        height: 3.5em !important;
+        height: 3.2em !important;
         font-weight: bold !important;
         border-radius: 8px !important;
         border: 1px solid #ccc !important;
+        background-color: white !important;
     }
 
-    /* Overlay Badge (Zähler) */
+    /* Die Badge (z.B. 1x) - Jetzt schwebend rechts oben am Button */
     .overlay-badge {
         position: absolute;
         top: -8px;
-        right: 2px;
+        right: -2px;
         background-color: #ff4b4b;
         color: white;
         padding: 1px 6px;
@@ -61,35 +63,43 @@ st.markdown("""
         font-size: 0.75em;
         z-index: 10;
         border: 1px solid white;
-        pointer-events: none; /* Klick geht durch das Badge auf den Button */
     }
 
-    /* Kompakter Minus-Button unter dem Preis */
-    .minus-container button {
-        height: 1.6em !important;
+    /* Minus-Container mit fester Höhe verhindert das Springen des Gitters */
+    .minus-space {
+        height: 35px !important;
+        margin-top: 4px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .minus-btn button {
         background-color: #f0f2f6 !important;
         color: #ff4b4b !important;
+        height: 1.8em !important;
+        width: 100% !important;
         border: 1px solid #ff4b4b !important;
-        margin-top: -5px !important;
         font-size: 0.8em !important;
+        line-height: 1 !important;
     }
 
-    /* Numpad Display */
+    /* Numpad Design */
     .val-box {
         background-color: #000;
         color: #39FF14;
-        padding: 10px;
-        border-radius: 5px;
+        padding: 12px;
+        border-radius: 8px;
         font-family: monospace;
         font-size: 1.8em;
         text-align: right;
         border: 2px solid #444;
-        margin: 10px 0;
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# INITIALISIERUNG DER WERTE
+# INITIALISIERUNG
 if 'c_mat' not in st.session_state: st.session_state.c_mat = {round(x * 0.1, 2): 0 for x in range(5, 101)}
 if 'c_gruen' not in st.session_state: st.session_state.c_gruen = {"Pistazie": 0, "Euka": 0, "Salal": 0, "Baergras": 0, "Chico": 0}
 if 'c_schleife' not in st.session_state: st.session_state.c_schleife = {"Schleife kurz/schmal": 0, "Schleife lang/breit": 0}
@@ -106,17 +116,17 @@ def reset_callback():
     st.session_state.e0, st.session_state.e1, st.session_state.e2 = 0.0, 0.0, 0.0
     st.session_state.num_buffer = ""
 
-# --- TURBO-SIDEBAR (Nur dieser Bereich lädt beim Tippen neu) ---
+# --- TURBO-SIDEBAR (Isoliertes Fragment für Speed) ---
 @st.fragment
-def render_sidebar():
+def sidebar_numpad():
     st.subheader("Zusatzkosten (Touch)")
     
-    # Schnellerer Wechsel durch Segmented Control
     option_map = {"Gefäß": "e0", "Extra 1": "e1", "Extra 2": "e2"}
     selection = st.segmented_control(
         "Kategorie wählen:", 
         options=list(option_map.keys()), 
-        default=st.session_state.active_field
+        default=st.session_state.active_field,
+        key="cat_select"
     )
     
     if selection != st.session_state.active_field:
@@ -125,8 +135,6 @@ def render_sidebar():
         st.rerun()
 
     active_key = option_map[st.session_state.active_field]
-    
-    # Digitalanzeige
     st.markdown(f'<div class="val-box">{st.session_state[active_key]:.2f} EUR</div>', unsafe_allow_html=True)
 
     # Numpad
@@ -154,7 +162,8 @@ def render_sidebar():
         st.rerun()
 
 # --- HAUPTBEREICH ---
-render_sidebar()
+with st.sidebar:
+    sidebar_numpad()
 
 # BERECHNUNG
 gruen_p = {"Pistazie": 1.50, "Euka": 2.50, "Salal": 1.50, "Baergras": 0.60, "Chico": 1.20}
@@ -183,55 +192,6 @@ with tabs[0]:
                 p = p_keys[i+j]
                 with cols[j]:
                     count = st.session_state.c_mat[p]
+                    # Rote Badge (Overlay)
                     if count > 0:
-                        st.markdown(f'<div class="overlay-badge">{count}x</div>', unsafe_allow_html=True)
-                    if st.button(f"{p:.2f}", key=f"m_{p}", use_container_width=True):
-                        st.session_state.c_mat[p] += 1; st.rerun()
-                    if count > 0:
-                        st.markdown('<div class="minus-container">', unsafe_allow_html=True)
-                        if st.button("—", key=f"min_m_{p}", use_container_width=True):
-                            st.session_state.c_mat[p] -= 1; st.rerun()
-                        st.markdown('</div>', unsafe_allow_html=True)
-
-with tabs[1]:
-    g_cols = st.columns(5)
-    for i, name in enumerate(gruen_p.keys()):
-        with g_cols[i]:
-            count = st.session_state.c_gruen[name]
-            if count > 0:
-                st.markdown(f'<div class="overlay-badge">{count}x</div>', unsafe_allow_html=True)
-            if st.button(f"{name}\n{gruen_p[name]:.2f}", key=f"g_{name}", use_container_width=True):
-                st.session_state.c_gruen[name] += 1; st.rerun()
-            if count > 0:
-                st.markdown('<div class="minus-container">', unsafe_allow_html=True)
-                if st.button("—", key=f"min_g_{name}", use_container_width=True):
-                    st.session_state.c_gruen[name] -= 1; st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
-
-with tabs[2]:
-    ca, cb = st.columns(2)
-    with ca:
-        st.subheader("Arbeitszeit")
-        if st.button(f"➕ 1 Minute (0,80 EUR)", key="btn_labor", use_container_width=True): 
-            st.session_state.c_labor += 1; st.rerun()
-        if st.session_state.c_labor > 0:
-            st.info(f"{st.session_state.c_labor} Min = {labor_sum:.2f} EUR")
-            if st.button("— Minute abziehen", key="min_labor", use_container_width=True): 
-                st.session_state.c_labor -= 1; st.rerun()
-    with cb:
-        st.subheader("Schleifen")
-        for s_n, s_p in schleif_p.items():
-            if st.button(f"{s_n} ({s_p} EUR)", key=f"s_{s_n}", use_container_width=True):
-                st.session_state.c_schleife[s_n] += 1; st.rerun()
-            if st.session_state.c_schleife[s_n] > 0:
-                st.write(f"Anzahl: {st.session_state.c_schleife[s_n]}x")
-                if st.button("— entfernen", key=f"min_s_{s_n}", use_container_width=True): 
-                    st.session_state.c_schleife[s_n] -= 1; st.rerun()
-
-with tabs[3]:
-    st.button("♻️ ALLES LÖSCHEN (RESET)", key="reset", on_click=reset_callback, use_container_width=True)
-    # (Beleg-Tabelle wie gehabt)
-
-# --- GLOBALER RESET UNTEN ---
-st.divider()
-if st.button("♻️ KOMPLETT-RESET", key="global_reset", on_click=reset_callback): pass
+                        st.markdown(f
